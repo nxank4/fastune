@@ -1,7 +1,7 @@
-# FastTune
+# Fastune
 
-FastTune: High-Performance Hyperparameter Tuning in Rust
-FastTune is a Rust-based library for hyperparameter tuning, offering 2-5x faster performance than scikit-learn's `GridSearchCV`. It integrates seamlessly with scikit-learn via Python bindings.
+Fastune: High-Performance Hyperparameter Tuning in Python
+Fastune is a Python library for hyperparameter tuning, offering improved performance over scikit-learn's `GridSearchCV` through optimized parallel processing. It integrates seamlessly with scikit-learn models.
 
 ## Installation
 
@@ -25,9 +25,16 @@ print("Best Parameters:", grid.best_params)
 print("Best Score:", grid.best_score)
 ```
 
+## Features
+
+- Drop-in replacement for scikit-learn's GridSearchCV
+- Optimized parallel processing with Python's multiprocessing
+- Compatible with all scikit-learn estimators
+- Simple, Pythonic API
+
 ## Status
 
-Under active development. See [Issues](https://github.com/<your-username>/fasttune/issues) for tasks.
+Under active development. See [Issues](https://github.com/<your-username>/Fastune/issues) for tasks.
 
 ## License
 

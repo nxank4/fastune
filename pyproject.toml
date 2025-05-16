@@ -1,0 +1,32 @@
+[project]
+name = "fastune"
+version = "0.1.0"
+description = "Fastune is a Python library for hyperparameter tuning, offering improved performance over scikit-learn's `GridSearchCV` through optimized parallel processing. It integrates seamlessly with scikit-learn models."
+authors = [
+    { name = "lunovian", email = "75156243+lunovian@users.noreply.github.com" },
+]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy (>=2.2.5,<3.0.0)",
+    "scikit-learn (>=1.6.1,<2.0.0)",
+    "pandas (>=2.2.3,<3.0.0)",
+    "flake8 (>=7.2.0,<8.0.0)",
+]
+
+[tool.poetry]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.5"
+pytest-cov = "^6.1.1"
+black = "^25.1.0"
+isort = "^6.0.1"
+mypy = "^1.15.0"
+sphinx = "^8.2.3"
+sphinx-rtd-theme = "^3.0.2"
+tox = "^4.26.0"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
