@@ -11,10 +11,10 @@
 - [x] Implemented early stopping, hybrid mutation, and reproducibility in `fastune/pbt_search.py`.
 - [x] Added comprehensive tests for PBTSearchCV (early stopping, mutation, reproducibility, etc.).
 - [x] Updated CI workflow to use Poetry for dependency management and testing.
+- [x] Implement parallel evaluation of population members for faster optimization.
 
 ## 🚧 Ongoing/Planned Tasks
 
-- [ ] Implement parallel evaluation of population members for faster optimization.
 - [ ] Add advanced logging (parameter sets, scores, resource usage, experiment tracking).
 - [ ] Integrate resource-aware scheduling (memory/CPU profiling and adaptive allocation).
 - [ ] Support hybridization with other optimizers (e.g., PBT + Bayesian optimization).
