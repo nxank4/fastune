@@ -4,6 +4,7 @@ from sklearn.base import clone  # type: ignore
 from sklearn.model_selection import cross_val_score  # type: ignore
 import matplotlib.pyplot as plt  # type: ignore
 import numpy as np
+from joblib import Parallel, delayed
 
 
 class PBTSearchCV:
@@ -53,7 +54,8 @@ class PBTSearchCV:
             num_select = len(pop) // 2
         selected = []
         for _ in range(num_select):
-            competitors = random.sample(pop, k)
+            idxs = self._rng.choice(len(pop), k, replace=False)
+            competitors = [pop[i] for i in idxs]
             winner = max(competitors, key=lambda ind: ind["score"])
             selected.append(winner)
         return selected
@@ -68,9 +70,11 @@ class PBTSearchCV:
     def fit(self, X, y):
         # initialize population
         pop = []
-        for _ in range(self.population_size):
-            params = self._sample_params()
-            score = self._evaluate(params, X, y)
+        param_list = [self._sample_params() for _ in range(self.population_size)]
+        scores = Parallel(n_jobs=-1)(
+            delayed(self._evaluate)(params, X, y) for params in param_list
+        )
+        for params, score in zip(param_list, scores):
             pop.append({"params": params, "score": score})
         self.history_.append([deepcopy(ind) for ind in pop])
         best_score = None
@@ -84,6 +88,7 @@ class PBTSearchCV:
             scores = [ind["score"] for ind in pop]
             mut_prob = self._adaptive_mutation_prob(scores)
             new_pop = elites.copy()
+            child_param_list = []
             for i in range(self.population_size - len(elites)):
                 src = self._rng.choice(elites)
                 child_params = deepcopy(src["params"])
@@ -103,8 +108,12 @@ class PBTSearchCV:
                         # Categorical: re-sample
                         elif isinstance(dist, (list, tuple)):
                             child_params[key] = self._rng.choice(dist)
-                score = self._evaluate(child_params, X, y)
-                new_pop.append({"params": child_params, "score": score})
+                child_param_list.append(child_params)
+            child_scores = Parallel(n_jobs=-1)(
+                delayed(self._evaluate)(params, X, y) for params in child_param_list
+            )
+            for params, score in zip(child_param_list, child_scores):
+                new_pop.append({"params": params, "score": score})
             pop = new_pop
             self.history_.append([deepcopy(ind) for ind in pop])
             best_gen_score = max([ind["score"] for ind in pop])
