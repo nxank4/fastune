@@ -165,8 +165,7 @@ class PBTSearchCV:
         best = max(pop, key=lambda ind: ind["score"])
         self.best_params_ = best["params"]
         self.best_score_ = best["score"]
-        if log_file is not None:
-            log_file.close()
+        # No need to explicitly close log_file; it is handled by the 'with' statement.
         return self
 
     def visualize(self):
