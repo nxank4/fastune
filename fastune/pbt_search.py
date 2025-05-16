@@ -3,6 +3,7 @@ from copy import deepcopy
 from sklearn.base import clone  # type: ignore
 from sklearn.model_selection import cross_val_score  # type: ignore
 import matplotlib.pyplot as plt  # type: ignore
+import numpy as np
 
 
 class PBTSearchCV:
@@ -14,6 +15,7 @@ class PBTSearchCV:
         generations=10,
         cv=3,
         random_state=None,
+        patience=5,  # Early stopping patience
     ):
         self.estimator = estimator
         self.param_dist = param_dist
@@ -21,6 +23,7 @@ class PBTSearchCV:
         self.generations = generations
         self.cv = cv
         self.random_state = random_state
+        self.patience = patience
         self.history_ = []
         if self.random_state is not None:
             random.seed(self.random_state)
@@ -42,6 +45,24 @@ class PBTSearchCV:
         scores = cross_val_score(model, X, y, cv=self.cv)
         return float(scores.mean())
 
+    def _tournament_select(self, pop, k=3, num_select=None):
+        # Tournament selection: pick k random, select best, repeat
+        if num_select is None:
+            num_select = len(pop) // 2
+        selected = []
+        for _ in range(num_select):
+            competitors = random.sample(pop, k)
+            winner = max(competitors, key=lambda ind: ind["score"])
+            selected.append(winner)
+        return selected
+
+    def _adaptive_mutation_prob(self, scores, min_prob=0.1, max_prob=0.5):
+        # Higher stddev = more diversity = less mutation needed
+        std = np.std(scores)
+        norm_std = min(std / (np.mean(scores) + 1e-8), 1.0)
+        # Invert: more diversity, less mutation
+        return max_prob - (max_prob - min_prob) * norm_std
+
     def fit(self, X, y):
         # initialize population
         pop = []
@@ -49,22 +70,24 @@ class PBTSearchCV:
             params = self._sample_params()
             score = self._evaluate(params, X, y)
             pop.append({"params": params, "score": score})
-        # record history
         self.history_.append([ind["score"] for ind in pop])
-        # PBT loop
-        half = self.population_size // 2
+        best_score = None
+        best_gen = 0
         for gen in range(self.generations):
-            # exploit: select top half
-            pop = sorted(pop, key=lambda ind: ind["score"], reverse=True)
-            elites = pop[:half]
-            # replace worst half with copies of elites
+            # Tournament selection for diversity
+            elites = self._tournament_select(
+                pop, k=3, num_select=self.population_size // 2
+            )
+            # Adaptive mutation probability
+            scores = [ind["score"] for ind in pop]
+            mut_prob = self._adaptive_mutation_prob(scores)
             new_pop = elites.copy()
-            for i in range(self.population_size - half):
+            for i in range(self.population_size - len(elites)):
                 src = random.choice(elites)
                 child_params = deepcopy(src["params"])
-                # explore: re-sample each param with prob 0.3
+                # Adaptive explore: re-sample each param with adaptive prob
                 for key, dist in self.param_dist.items():
-                    if random.random() < 0.3:
+                    if random.random() < mut_prob:
                         if hasattr(dist, "rvs"):
                             child_params[key] = dist.rvs(random_state=self.random_state)
                         elif isinstance(dist, (list, tuple)):
@@ -73,7 +96,13 @@ class PBTSearchCV:
                 new_pop.append({"params": child_params, "score": score})
             pop = new_pop
             self.history_.append([ind["score"] for ind in pop])
-        # finalize best
+            best_gen_score = max([ind["score"] for ind in pop])
+            if best_score is None or best_gen_score > best_score:
+                best_score = best_gen_score
+                best_gen = gen
+            elif gen - best_gen >= self.patience:
+                # Early stopping
+                break
         best = max(pop, key=lambda ind: ind["score"])
         self.best_params_ = best["params"]
         self.best_score_ = best["score"]
