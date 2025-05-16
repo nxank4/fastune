@@ -2,6 +2,7 @@ from fastune.pbt_search import PBTSearchCV
 from sklearn.linear_model import LogisticRegression  # type: ignore
 from scipy.stats import uniform  # type: ignore
 from sklearn.datasets import make_classification  # type: ignore
+import numpy as np
 
 
 def test_pbt_search_basic():
@@ -123,3 +124,34 @@ def test_categorical_mutation():
             mutated = True
             break
     assert mutated, "Categorical mutation did not change any offspring parameters."
+
+
+def test_parallel_evaluation_runs_and_returns_results():
+    import time
+    from sklearn.base import BaseEstimator, ClassifierMixin
+
+    class SlowEstimator(BaseEstimator, ClassifierMixin):
+        def __init__(self, dummy=None):
+            self.dummy = dummy
+
+        def fit(self, X, y):
+            time.sleep(0.1)  # Simulate slow fit
+            return self
+
+        def predict(self, X):
+            return np.zeros(X.shape[0], dtype=int)
+
+    X, y = make_classification(n_samples=40, n_features=4, random_state=123)
+    estimator = SlowEstimator()
+    param_dist = {"dummy": [1, 2, 3, 4]}
+    search = PBTSearchCV(
+        estimator, param_dist, population_size=4, generations=2, cv=2, random_state=123
+    )
+    start = time.time()
+    search.fit(X, y)
+    elapsed = (
+        time.time() - start
+    )  # Should not take 0.1 * population_size * generations seconds (should be faster due to parallelism)
+    assert elapsed < 0.1 * 4 * 2 * 1.5  # Allow more overhead for parallelism
+    assert hasattr(search, "best_params_")
+    assert hasattr(search, "best_score_")
