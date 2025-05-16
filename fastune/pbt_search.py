@@ -5,6 +5,13 @@ from sklearn.model_selection import cross_val_score  # type: ignore
 import matplotlib.pyplot as plt  # type: ignore
 import numpy as np
 from joblib import Parallel, delayed
+import time
+import csv
+
+try:
+    import psutil
+except ImportError:
+    psutil = None
 
 
 class PBTSearchCV:
@@ -17,6 +24,7 @@ class PBTSearchCV:
         cv=3,
         random_state=None,
         patience=5,  # Early stopping patience
+        log_to=None,  # Path to CSV log file
     ):
         self.estimator = estimator
         self.param_dist = param_dist
@@ -26,6 +34,7 @@ class PBTSearchCV:
         self.random_state = random_state
         self.patience = patience
         self.history_ = []
+        self.log_to = log_to
         if self.random_state is not None:
             self._rng = np.random.RandomState(self.random_state)
         else:
@@ -70,6 +79,37 @@ class PBTSearchCV:
     def fit(self, X, y):
         # initialize population
         pop = []
+        log_file = None
+        log_writer = None
+        if self.log_to is not None:
+            log_file = open(self.log_to, "w", newline="")
+            log_writer = csv.writer(log_file)
+            param_keys = list(self.param_dist.keys())
+            log_writer.writerow(
+                [
+                    "generation",
+                    "individual",
+                    *param_keys,
+                    "score",
+                    "elapsed_sec",
+                    "memory_mb",
+                ]
+            )
+
+        def log_generation(gen, pop, elapsed, mem):
+            if log_writer is not None:
+                for i, ind in enumerate(pop):
+                    row = [gen, i]
+                    for k in self.param_dist.keys():
+                        row.append(ind["params"].get(k, None))
+                    row.append(ind["score"])
+                    row.append(elapsed)
+                    row.append(mem)
+                    log_writer.writerow(row)
+                log_file.flush()
+
+        start_time = time.time()
+        process = psutil.Process() if psutil else None
         param_list = [self._sample_params() for _ in range(self.population_size)]
         scores = Parallel(n_jobs=-1)(
             delayed(self._evaluate)(params, X, y) for params in param_list
@@ -77,14 +117,16 @@ class PBTSearchCV:
         for params, score in zip(param_list, scores):
             pop.append({"params": params, "score": score})
         self.history_.append([deepcopy(ind) for ind in pop])
+        elapsed = time.time() - start_time
+        mem = process.memory_info().rss / 1024 / 1024 if process else None
+        log_generation(0, pop, elapsed, mem)
         best_score = None
         best_gen = 0
         for gen in range(self.generations):
-            # Tournament selection for diversity
+            gen_start = time.time()
             elites = self._tournament_select(
                 pop, k=3, num_select=self.population_size // 2
             )
-            # Adaptive mutation probability
             scores = [ind["score"] for ind in pop]
             mut_prob = self._adaptive_mutation_prob(scores)
             new_pop = elites.copy()
@@ -92,20 +134,15 @@ class PBTSearchCV:
             for i in range(self.population_size - len(elites)):
                 src = self._rng.choice(elites)
                 child_params = deepcopy(src["params"])
-                # Hybrid mutation: perturb numeric, re-sample categorical
                 for key, dist in self.param_dist.items():
                     if self._rng.rand() < mut_prob:
                         val = child_params[key]
-                        # Numeric: perturb
                         if hasattr(dist, "rvs") and isinstance(val, (int, float)):
-                            # Small random factor (0.8-1.2)
                             factor = self._rng.uniform(0.8, 1.2)
                             new_val = val * factor
-                            # Clamp to distribution bounds if possible
                             if hasattr(dist, "a") and hasattr(dist, "b"):
                                 new_val = max(dist.a, min(dist.b, new_val))
                             child_params[key] = type(val)(new_val)
-                        # Categorical: re-sample
                         elif isinstance(dist, (list, tuple)):
                             child_params[key] = self._rng.choice(dist)
                 child_param_list.append(child_params)
@@ -116,16 +153,20 @@ class PBTSearchCV:
                 new_pop.append({"params": params, "score": score})
             pop = new_pop
             self.history_.append([deepcopy(ind) for ind in pop])
+            elapsed = time.time() - gen_start
+            mem = process.memory_info().rss / 1024 / 1024 if process else None
+            log_generation(gen + 1, pop, elapsed, mem)
             best_gen_score = max([ind["score"] for ind in pop])
             if best_score is None or best_gen_score > best_score:
                 best_score = best_gen_score
                 best_gen = gen
             elif gen - best_gen >= self.patience:
-                # Early stopping
                 break
         best = max(pop, key=lambda ind: ind["score"])
         self.best_params_ = best["params"]
         self.best_score_ = best["score"]
+        if log_file is not None:
+            log_file.close()
         return self
 
     def visualize(self):

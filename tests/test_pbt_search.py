@@ -155,3 +155,31 @@ def test_parallel_evaluation_runs_and_returns_results():
     assert elapsed < 0.1 * 4 * 2 * 1.5  # Allow more overhead for parallelism
     assert hasattr(search, "best_params_")
     assert hasattr(search, "best_score_")
+
+
+def test_logging_creates_csv_and_logs_content(tmp_path):
+    import pandas as pd
+
+    X, y = make_classification(n_samples=40, n_features=4, random_state=42)
+    estimator = LogisticRegression(solver="liblinear")
+    param_dist = {"C": [0.1, 1, 10]}
+    log_file = tmp_path / "pbt_log.csv"
+    search = PBTSearchCV(
+        estimator,
+        param_dist,
+        population_size=3,
+        generations=1,
+        cv=2,
+        random_state=42,
+        log_to=str(log_file),
+    )
+    search.fit(X, y)
+    # Check file exists and has expected columns
+    df = pd.read_csv(log_file)
+    assert set(
+        ["generation", "individual", "C", "score", "elapsed_sec", "memory_mb"]
+    ).issubset(df.columns)
+    # There should be at least one row per individual per generation
+    assert len(df) >= 3 * 2
+    # Scores should be floats and in [0, 1]
+    assert df["score"].between(0, 1).all()
