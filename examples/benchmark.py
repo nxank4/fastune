@@ -9,19 +9,22 @@ pip install numpy scipy matplotlib scikit-learn optuna
 
 import time
 import sys
+import warnings
+import os
+
 import numpy as np
 from scipy import stats
+from scipy.stats import ttest_rel
 import matplotlib.pyplot as plt
+from argparse import ArgumentParser
+from tabulate import tabulate  # Pretty printing
+import psutil
+
 from sklearn.datasets import load_breast_cancer, load_diabetes, fetch_california_housing
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, mean_squared_error, r2_score
-from argparse import ArgumentParser
-from tabulate import tabulate  # Optional for pretty printing
-import warnings
-import os
-import psutil
-from scipy.stats import ttest_rel
+
 
 # Import fastune
 from fastune.pbt_search import PBTSearchCV
