@@ -93,3 +93,4 @@ class PBTSearchCV:
         plt.legend()
         plt.grid(True)
         plt.show()
+        plt.close()
