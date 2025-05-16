@@ -53,7 +53,7 @@ class PBTSearchCV:
             num_select = len(pop) // 2
         selected = []
         for _ in range(num_select):
-            competitors = self._rng.choice(pop, k, replace=False)
+            competitors = random.sample(pop, k)
             winner = max(competitors, key=lambda ind: ind["score"])
             selected.append(winner)
         return selected
